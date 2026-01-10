@@ -41,7 +41,12 @@ class ActivationExtractor:
 
         # Set device
         if device == 'auto':
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            if torch.cuda.is_available():
+                self.device = 'cuda'
+            elif torch.backends.mps.is_available():
+                self.device = 'mps'
+            else:
+                self.device = 'cpu'
         else:
             self.device = device
 
@@ -58,13 +63,21 @@ class ActivationExtractor:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        # Determine dtype
+        if self.device == 'cuda':
+            dtype = torch.float16
+        elif self.device == 'mps':
+            dtype = torch.float16
+        else:
+            dtype = torch.float32
+
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32,
+            torch_dtype=dtype,
             device_map=self.device if self.device == 'cuda' else None
         )
 
-        if self.device == 'cpu':
+        if self.device != 'cuda':
             self.model = self.model.to(self.device)
 
         self.model.eval()
